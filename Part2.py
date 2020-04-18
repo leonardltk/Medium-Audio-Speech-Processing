@@ -20,7 +20,7 @@ winstep=1.*hop_length/sr
 num_freq_bins=n_fft//2 +1
 
 #################################################################
-if 0 : ## Stationary Noise
+if True : ## Stationary Noise
     print("\nStationary Noise")
     #################################################################
     if True : ## Waveform of the number 'seven'
@@ -61,7 +61,7 @@ if 0 : ## Stationary Noise
     print('Saved to ',fig_path)
 
 #################################################################
-if 0 : ## Non-Stationary Noise
+if True : ## Non-Stationary Noise
     print("\nNon-Stationary Noise")
     #################################################################
     if True : ## Waveform of the number 'seven'
