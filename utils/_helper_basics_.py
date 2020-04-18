@@ -5,6 +5,7 @@ if 1 : ## Imports
     import sys, os, datetime, traceback, pprint, pdb
     import subprocess, itertools, importlib , math, glob, time, random, shutil, csv, statistics, ast, heapq
     import numpy as np
+    import scipy.io as sio
     import collections
     import pickle
 
@@ -248,6 +249,44 @@ if True:
 
 ## Audio - Feature Extraction
 if True:
+    ## Pre-processing Stage 2
+    def get_cmvn_stats(feat_in, norm_mode, axis_cmvn=1, ):
+        """
+            feat_in : (num_ceps, time), use axis_cmvn=1
+            norm_mode : 'cmn','cmvn'
+        """
+        if norm_mode=='cmn':
+            curr_mean = np.mean(feat_in,axis=axis_cmvn)
+            feat_mean = np.expand_dims( curr_mean, axis=axis_cmvn) 
+            return feat_mean
+        elif norm_mode=='cmvn':
+            curr_mean = np.mean(feat_in,axis=axis_cmvn)
+            feat_mean = np.expand_dims( curr_mean, axis=axis_cmvn)  
+            curr_std = np.std(feat_in-feat_mean,axis=axis_cmvn)
+            feat_std  = np.expand_dims( curr_std, axis=axis_cmvn) 
+            return feat_mean,feat_std
+        else:
+            raise Exception('\n\nnorm_mode Error: \nCurrently norm_mode={}\nYou have to choose between norm_mode="cmn" or norm_mode="cmvn" \n\n'.format(norm_mode))
+    def add_2_deltas(feat_in, width_in):
+        ## Compute the delta features 
+        delta_1 = librosa.feature.delta(feat_in, width=width_in)
+        delta_2 = librosa.feature.delta(feat_in, width=width_in, order=2)
+        return delta_1, delta_2
+    def seconds_to_frameidx(secs, hop_length, n_fft, sr):
+        num_samples = secs*sr
+        frame_idx = (num_samples-n_fft)/hop_length
+        return int(frame_idx)+1
+    def Hz_to_freqidx(hz_in, num_freq_bins, sr):
+        num_freq_res = (sr/2)/num_freq_bins
+        return int(hz_in / num_freq_res)
+    def frameidx_to_samples(frameidx, hop_length, n_fft, sr):    return int(((frameidx-1)*hop_length+n_fft))
+    def frameidx_to_seconds(frameidx, hop_length, n_fft, sr):    return int(((frameidx-1)*hop_length+n_fft)/sr)
+    def frameidx_to_minsec(frameidx, hop_length, n_fft, sr):    
+        Total_secs = frameidx_to_seconds(frameidx, hop_length, n_fft, sr)
+        num_sec=Total_secs%60
+        num_min=(Total_secs-num_sec)/60
+        return [int(num_min),int(num_sec)]
+
     ## STFT, LPS
     def wav2stft(x_in, spect_det=None, mode="librosa",
         n_fft=None, win_length=None, hop_length=None, nfft=None, winstep=None, winlen=None,
@@ -530,7 +569,7 @@ if True:
             beta_out = 1/(k+1)**0.5
         return alpha_out,beta_out
     ## v2 : shifted reverb, and power normalisation, clip if specified to
-    def augment_noisy_wave_v2(  _clean_WAV, _noise_WAV, _snr,  allow_clipping=True): 
+    def augment_noisy_wave(  _clean_WAV, _noise_WAV, _snr,  allow_clipping=True): 
         ## y = a*clean + b*noise
 
         num_samples_clean=float(np.max(_clean_WAV.shape))
@@ -557,7 +596,7 @@ if True:
             _noisy_WAV_pnorm[_noisy_WAV_pnorm<-1]=-1.
             # print('Clipped {} samples'.format(num_clipped))
         return _noisy_WAV_pnorm
-    def augment_reverb_wave_v2( _clean_WAV, _RIR_WAV,   pow_eq=True): 
+    def augment_reverb_wave( _clean_WAV, _RIR_WAV,   pow_eq=True): 
         def shift(xs,n):
             e = np.empty_like(xs)
             if n>= 0:
@@ -579,5 +618,3 @@ if True:
             reverb_P=calc_power(_reverb_WAV)
             _reverb_WAV = power_norm(_reverb_WAV, clean_P)
         return _reverb_WAV
-    augment_noisy_wave=augment_noisy_wave_v2
-    augment_reverb_wave=augment_reverb_wave_v2
