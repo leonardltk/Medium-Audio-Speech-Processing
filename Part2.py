@@ -99,6 +99,11 @@ if True : ## Non-Stationary Noise
     plt.close()
     print('Saved to ',fig_path)
 
+# 
+sr=8000
+n_fft=256
+win_length=256
+hop_length=128
 #################################################################
 if True : ## Reveberation
     # 
@@ -116,7 +121,7 @@ if True : ## Reveberation
         plt.subplot(k,col,l); plt.plot(phrase_wav); plt.title('clean'); l+=1
         for rir_bn in ['3']:
             RIR_path = os.path.join('wav',f'RIR_RT60_0.2s_{rir_bn}m_20d_ch1.mat')
-            RIR_dict = sio.loadmat(RIR_path)
+            RIR_dict = scipy.io.loadmat(RIR_path)
             RIR = RIR_dict['RIR_cell'][0][0][:,0]
             phrase_rev = augment_reverb_wave(phrase_wav, RIR,  pow_eq=True)
             # Write to file
@@ -135,7 +140,7 @@ if True : ## Reveberation
         # 
         for rir_bn in ['3']:
             RIR_path = os.path.join('wav',f'RIR_RT60_0.2s_{rir_bn}m_20d_ch1.mat')
-            RIR_dict = sio.loadmat(RIR_path)
+            RIR_dict = scipy.io.loadmat(RIR_path)
             RIR = RIR_dict['RIR_cell'][0][0][:,0]
             phrase_rev = augment_reverb_wave(phrase_wav, RIR,  pow_eq=True)
             _, _, _, phrase_LPS = wav2LPS(phrase_rev, mode="librosa", n_fft=n_fft, win_length=win_length, hop_length=hop_length)
@@ -148,10 +153,113 @@ if True : ## Reveberation
     plt.close()
     print('Saved to ',fig_path)
 
-
-
 #################################################################
-# pdb.set_trace()
+if True : ## SpecAugment
+    print("\nSpecAugment")
+    if True : ## Perform SpecAugment
+        phrase_MAG, phrase_PHA, _, phrase_LPS = wav2LPS(phrase_wav, mode="librosa", n_fft=n_fft, win_length=win_length, hop_length=hop_length)
+        warped_LPS, masked_LPS_time, masked_LPS_freq, masked_LPS = SpecAugment(phrase_LPS)
+    if True : ## Extract the magnitude
+        warped_MAG = np.exp(warped_LPS/2)
+        masked_MAG_time = np.exp(masked_LPS_time/2)
+        masked_MAG_freq = np.exp(masked_LPS_freq/2)
+        masked_MAG = np.exp(masked_LPS/2)
+    if True : ## Reconstruct the wave
+        phrase_wav_reconstruct = spect2wav(len(phrase_wav), phrase_MAG, phrase_PHA, mode="librosa", n_fft=n_fft, win_length=win_length, hop_length=hop_length, n_mels=n_mels, nfft=n_fft, winstep=winstep, winlen=winlen)
+        warped_wav_reconstruct = spect2wav(len(phrase_wav), warped_MAG, phrase_PHA, mode="librosa", n_fft=n_fft, win_length=win_length, hop_length=hop_length, n_mels=n_mels, nfft=n_fft, winstep=winstep, winlen=winlen)
+        masked_wav_time_reconstruct = spect2wav(len(phrase_wav), masked_MAG_time, phrase_PHA, mode="librosa", n_fft=n_fft, win_length=win_length, hop_length=hop_length, n_mels=n_mels, nfft=n_fft, winstep=winstep, winlen=winlen)
+        masked_wav_freq_reconstruct = spect2wav(len(phrase_wav), masked_MAG_freq, phrase_PHA, mode="librosa", n_fft=n_fft, win_length=win_length, hop_length=hop_length, n_mels=n_mels, nfft=n_fft, winstep=winstep, winlen=winlen)
+        masked_wav_reconstruct = spect2wav(len(phrase_wav), masked_MAG, phrase_PHA, mode="librosa", n_fft=n_fft, win_length=win_length, hop_length=hop_length, n_mels=n_mels, nfft=n_fft, winstep=winstep, winlen=winlen)
+    if True : ## Write to file
+        wav_path = os.path.join('wav',f'warped_wav_reconstruct.wav'); 
+        write_audio(wav_path,warped_wav_reconstruct,sr); print(f'\tWritten to {wav_path}')
+        wav_path = os.path.join('wav',f'masked_wav_time_reconstruct.wav'); 
+        write_audio(wav_path,masked_wav_time_reconstruct,sr); print(f'\tWritten to {wav_path}')
+        wav_path = os.path.join('wav',f'masked_wav_freq_reconstruct.wav'); 
+        write_audio(wav_path,masked_wav_freq_reconstruct,sr); print(f'\tWritten to {wav_path}')
+        wav_path = os.path.join('wav',f'masked_wav_reconstruct.wav'); 
+        write_audio(wav_path,masked_wav_reconstruct,sr); print(f'\tWritten to {wav_path}')
+    ## Plot Individual
+    if True : ## Time Warp
+        k=1;col=2;l=1; fig=plt.figure(figsize=(4*col,3*k))
+        plt.subplot(k,col,l)
+        cmap = librosa.display.cmap(phrase_LPS)
+        librosa.display.specshow(phrase_LPS, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'clean'); l+=1
+        # 
+        plt.subplot(k,col,l)
+        librosa.display.specshow(warped_LPS, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'warped LPS'); l+=1
+        plt.tight_layout(); plt.show()
+        fig_path = os.path.join(plot_dir,'SpecAugment_TimeWarp.png')
+        fig.savefig(fig_path)
+        plt.close()
+        print('Saved to ',fig_path)
+    if True : ## Time Mask
+        k=1;col=2;l=1; fig=plt.figure(figsize=(4*col,3*k))
+        plt.subplot(k,col,l)
+        cmap = librosa.display.cmap(warped_LPS)
+        librosa.display.specshow(warped_LPS, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'warped LPS'); l+=1
+        # 
+        plt.subplot(k,col,l)
+        librosa.display.specshow(masked_LPS_time, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'masked time'); l+=1
+        plt.tight_layout(); plt.show()
+        fig_path = os.path.join(plot_dir,'SpecAugment_TimeMask.png')
+        fig.savefig(fig_path)
+        plt.close()
+        print('Saved to ',fig_path)
+    if True : ## Freq Mask
+        k=1;col=2;l=1; fig=plt.figure(figsize=(4*col,3*k))
+        plt.subplot(k,col,l)
+        cmap = librosa.display.cmap(warped_LPS)
+        librosa.display.specshow(warped_LPS, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'warped LPS'); l+=1
+        # 
+        plt.subplot(k,col,l)
+        librosa.display.specshow(masked_LPS_freq, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'masked freq'); l+=1
+        plt.tight_layout(); plt.show()
+        fig_path = os.path.join(plot_dir,'SpecAugment_FreqMask.png')
+        fig.savefig(fig_path)
+        plt.close()
+        print('Saved to ',fig_path)
+    if True : ## TimeFreq Mask
+        k=1;col=2;l=1; fig=plt.figure(figsize=(4*col,3*k))
+        plt.subplot(k,col,l)
+        cmap = librosa.display.cmap(warped_LPS)
+        librosa.display.specshow(warped_LPS, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'warped LPS'); l+=1
+        # 
+        plt.subplot(k,col,l)
+        librosa.display.specshow(masked_LPS, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'masked freq & time'); l+=1
+        plt.tight_layout(); plt.show()
+        fig_path = os.path.join(plot_dir,'SpecAugment_TimeFreqMask.png')
+        fig.savefig(fig_path)
+        plt.close()
+        print('Saved to ',fig_path)
+    ## Plot All
+    if True : ## Plot spectrogram & wave
+        k=5;col=2;l=1; fig=plt.figure(figsize=(4*col,3*k))
+        plt.subplot(k,col,l)
+        cmap = librosa.display.cmap(phrase_LPS)
+        librosa.display.specshow(phrase_LPS, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'clean'); l+=1
+        plt.subplot(k,col,l); plt.plot(phrase_wav); plt.title(f'clean (wave)'); l+=1
+        # 
+        plt.subplot(k,col,l)
+        librosa.display.specshow(warped_LPS, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'warped LPS'); l+=1
+        plt.subplot(k,col,l); plt.plot(warped_wav_reconstruct); plt.title(f'warped LPS (wave)'); l+=1
+        # 
+        plt.subplot(k,col,l)
+        librosa.display.specshow(masked_LPS_time, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'masked time'); l+=1
+        plt.subplot(k,col,l); plt.plot(masked_wav_time_reconstruct); plt.title(f'masked time (wave)'); l+=1
+        # 
+        plt.subplot(k,col,l)
+        librosa.display.specshow(masked_LPS_freq, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'masked freq'); l+=1
+        plt.subplot(k,col,l); plt.plot(masked_wav_freq_reconstruct); plt.title(f'masked freq (wave)'); l+=1
+        # 
+        plt.subplot(k,col,l)
+        librosa.display.specshow(masked_LPS, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', cmap=cmap); plt.title(f'masked freq & time'); l+=1
+        plt.subplot(k,col,l); plt.plot(masked_wav_reconstruct); plt.title(f'masked freq & time (wave)'); l+=1
+        plt.tight_layout(); plt.show()
+        fig_path = os.path.join(plot_dir,'SpecAugment_all.png')
+        fig.savefig(fig_path)
+        plt.close()
+        print('Saved to ',fig_path)
 
 #################################################################
 END_TIME=datetime.datetime.now()
